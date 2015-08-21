@@ -36,4 +36,7 @@ def dataproxy_resource_update(context, data_dict=None):
             #encrypt db_password
             data_dict['db_password'] = hexlify(encrypt(secret, password))
 
+    site_url = config.get('ckan.site_url', '127.0.0.1')
+    data_dict['url'] = '{0}/api/3/action/datastore_search?resource_id={1}&downloaded=true'.format(site_url, data_dict['id'])
+
     return orig_resource_update(context, data_dict)

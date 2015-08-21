@@ -4,6 +4,7 @@ from simplecrypt import encrypt
 from binascii import hexlify
 
 orig_resource_create = get_action('resource_create')
+orig_resource_update = get_action('resource_update')
 
 def dataproxy_resource_create(context, data_dict=None):
     """
@@ -25,8 +26,13 @@ def dataproxy_resource_create(context, data_dict=None):
             raise Exception('ckan.dataproxy.secret must be defined to encrypt passwords')
         password = data_dict.get('db_password')
         #replace password with a _password_ placeholder
-        data_dict['url'] = data_dict['url'].replace(password, '_password_')
+        data_dict['url'] = 'tmpURL' #data_dict['url'].replace(password, '_password_')
         #encrypt db_password
         data_dict['db_password'] = hexlify(encrypt(secret, password))
 
-    return orig_resource_create(context, data_dict)
+    data_dict = orig_resource_create(context, data_dict)
+
+    site_url = config.get('ckan.site_url', '127.0.0.1')
+    data_dict['url'] = '{0}/api/3/action/datastore_search?resource_id={1}&downloaded=true'.format(site_url, data_dict['id'])
+
+    return orig_resource_update(context, data_dict)

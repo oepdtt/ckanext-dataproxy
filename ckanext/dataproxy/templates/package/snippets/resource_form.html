@@ -31,6 +31,7 @@
         {{ form.input('db_password', id='field-dataproxy-password', label=_('Password'), classes=['control-full'], placeholder=password_placeholder, attrs=disabled) }}
         {{ form.input('database', id='field-dataproxy-database', label=_('Database name'), value=data.database, classes=['control-full'], attrs=disabled) }}
         {{ form.input('table', id='field-dataproxy-table', label=_('Table'), value=data.table, classes=['control-full'], attrs=disabled) }}
+        {{ form.markdown('aliases', id='field-dataproxy-aliases', label=_('Column Alias'), placeholder=_('Replace name of columns in database with alias, eg. "name:Full Name,dob:Date of Birth"'), value=data.aliases) }}
       </div>
       {% endblock %}
 
@@ -47,7 +48,7 @@
         </div>
       {% endif %}
     {% endblock %}
-      
+
       {% block basic_fields_name %}
         {{ form.input('name', id='field-name', label=_('Name'), placeholder=_('eg. January 2011 Gold Prices'), value=data.name, error=errors.name, classes=['control-full']) }}
     {% endblock %}

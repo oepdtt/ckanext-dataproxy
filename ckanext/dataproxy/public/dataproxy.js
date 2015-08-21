@@ -16,7 +16,7 @@ function createButton(){
 createButton();
 
 //maps database type to default port
-var portMap = {'postgresql': 5432, 'mysql': 3306, 'mssql+pymssql': ''};
+var portMap = {'postgresql': 5432, 'mysql': 3306, 'mssql+pymssql': '', 'oracle': 1521};
 
 function formatConnString(){
     //formats SQLAlchemy connection string from entered values
@@ -32,7 +32,7 @@ function formatConnString(){
     if(port !== ''){
         port = ':' + port;
     }
-    var connstr = db + '://' + user + ':' + password + '@' + host + port + '/' +database;
+    var connstr = ''; // db + '://' + user + ':' + password + '@' + host + port + '/' +database;
     $('#field-image-url').val(connstr);
 }
 

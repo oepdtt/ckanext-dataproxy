@@ -1,3 +1,4 @@
+import os
 import urllib
 import json
 import decimal
@@ -27,10 +28,41 @@ class SearchController(ApiController):
         """Routes dataproxy type resources to dataproxy_search method, else performs 'datastore_search' action"""
         #TODO: No access control checks for dataproxy resources!
         request_data = self._get_request_data(try_url_params=True)
+
+        downloaded = False
+        if 'downloaded' in request_data:
+            downloaded = str(request_data['downloaded']).upper() == 'TRUE'
+
         resource = Resource.get(request_data['resource_id'])
         if resource is not None and resource.url_type == 'dataproxy':
-            pylons.response.headers['Content-Type'] = 'application/json;charset=utf-8'
-            return self.dataproxy_search(request_data, resource)
+            if(downloaded):
+                pylons.response.headers['Content-Type'] = 'text/csv'
+                pylons.response.headers['Content-Disposition'] = 'attachment;filename="{0}.{1}"'.format(resource.name, resource.format)
+                datas = json.load(self.dataproxy_search(request_data, resource))
+                result = datas['result']
+
+                tmp = ''
+                fields = result['fields']
+                for val in fields:
+                    tmp += unicode(val['id']) + ','
+
+                records = result['records']
+                for row in records:
+                    tmp += '\n'
+                    for val in fields:
+                        if val['id'] in row:
+                            cell = row[val['id']]
+                            if cell is not None:
+                                tmp += unicode(cell) + ','
+                            else:
+                                tmp += ','
+                        else:
+                            tmp += ','
+
+                return str(tmp)
+            else:
+                pylons.response.headers['Content-Type'] = 'application/json;charset=utf-8'
+                return self.dataproxy_search(request_data, resource)
 
         #Default action otherwise
         return self.action('datastore_search', ver=3)
@@ -49,12 +81,23 @@ class SearchController(ApiController):
         if not secret:
             raise Exception('ckan.dataproxy.secret must be defined to encrypt/decrypt passwords')
 
-        connstr = resource.url
+        os.environ["NLS_LANG"] = "AMERICAN_AMERICA.AL32UTF8"
+        #connstr = resource.url
         password = resource.extras['db_password']
 
         password = decrypt(secret, unhexlify(password))
 
+        db_type = resource.extras['db']
+        db_user = resource.extras['db_user']
+        db_host = resource.extras['host']
+        db_port = resource.extras['port']
+        db_name = resource.extras['database']
+        db_aliases = resource.extras['aliases']
+
+        connstr = '{0}://{1}:_password_@{2}:{3}/{4}'.format(db_type, db_user, db_host, db_port, db_name)
+
         connstr = connstr.replace('_password_', password)
+
         table_name = resource.extras['table']
 
         meta = MetaData()
@@ -64,10 +107,23 @@ class SearchController(ApiController):
         select_query = select([table])
         fields = self._get_fields(table)
 
+        aliases = self._get_column_alias(db_aliases)
+        revert_aliases = {}
+        for key in aliases:
+            revert_aliases[aliases[key]] = key
+
         limit = request_data.get('limit', None)
         offset = request_data.get('offset', None)
         filters = request_data.get('filters', None)
+
         sort = request_data.get('sort', None)
+
+        if sort is not None:
+            tmp_arr = sort.split(' ')
+            if len(tmp_arr) == 2:
+                if tmp_arr[0] in revert_aliases:
+                    sort = revert_aliases[tmp_arr[0]] + ' ' + tmp_arr[1]
+
         q = request_data.get('q', None) #Not supported
 
         if limit is not None:
@@ -85,24 +141,40 @@ class SearchController(ApiController):
         if filters is not None:
             for field, value in filters.iteritems():
                 #check if fields exists
-                select_query = select_query.where(getattr(table.c, field) == value)
+                if field in revert_aliases:
+                    select_query = select_query.where(getattr(table.c, revert_aliases[field]) == value)
+                else:
+                    select_query = select_query.where(getattr(table.c, field) == value)
                 
         result = conn.execute(select_query)
         r = list()
         count = 0
+
         for row in result:
             count += 1
             d = OrderedDict()
             for field in fields:
-                d[field['id']] = row[field['id']]
+                if len(aliases.keys()) > 0:
+                    if field['id'] in aliases:
+                        d[aliases[field['id']]] = row[field['id']]
+                else:
+                    d[field['id']] = row[field['id']]
             r.append(d)
-        
+
+        if len(aliases.keys()) > 0:
+            new_fields = list()
+            for field in fields:
+                if field['id'] in aliases:
+                    new_fields.append({'id': aliases[field['id']], 'type': field['type']})
+        else:
+            new_fields = fields
+
         retval = OrderedDict()
         retval['help'] = self._help_message()
         retval['success'] = True
         retval['result'] = OrderedDict()
         retval['result']['resource_id'] = request_data['resource_id']
-        retval['result']['fields'] = fields
+        retval['result']['fields'] = new_fields
         retval['result']['records'] = r
         if filters is not None:
             retval['result']['filters'] = filters
@@ -119,6 +191,14 @@ class SearchController(ApiController):
         retval['result']['_links'] = self._insert_links(limit, offset)
 
         return json.dumps(retval, default=alchemyencoder)
+
+    def _get_column_alias(self, aliases_str):
+        alias = {}
+        for alias_str in aliases_str.split(','):
+            tmpArr = alias_str.split(':')
+            if len(tmpArr) == 2:
+                alias[tmpArr[0]] = tmpArr[1]
+        return alias
 
     def _get_fields(self, table):
         """
