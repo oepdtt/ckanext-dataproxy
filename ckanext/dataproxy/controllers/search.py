@@ -38,7 +38,7 @@ class SearchController(ApiController):
             if(downloaded):
                 pylons.response.headers['Content-Type'] = 'text/csv'
                 pylons.response.headers['Content-Disposition'] = 'attachment;filename="{0}.{1}"'.format(resource.name, resource.format)
-                datas = json.load(self.dataproxy_search(request_data, resource))
+                datas = json.loads(self.dataproxy_search(request_data, resource))
                 result = datas['result']
 
                 tmp = ''
@@ -53,7 +53,7 @@ class SearchController(ApiController):
                         if val['id'] in row:
                             cell = row[val['id']]
                             if cell is not None:
-                                tmp += unicode(cell) + ','
+                                tmp += '"' + unicode(cell) + '",'
                             else:
                                 tmp += ','
                         else:
