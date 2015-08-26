@@ -44,8 +44,11 @@ class SearchController(ApiController):
                 tmp = ''
                 fields = result['fields']
                 for val in fields:
-                    tmp += unicode(val['id']) + ','
-
+					field = val['id']
+					if isinstance(field, unicode):
+						tmp += field.encode('utf-8') + ','
+					else:
+						tmp += str(field) + ','
                 records = result['records']
                 for row in records:
                     tmp += '\n'
@@ -53,7 +56,10 @@ class SearchController(ApiController):
                         if val['id'] in row:
                             cell = row[val['id']]
                             if cell is not None:
-                                tmp += '"' + unicode(cell) + '",'
+								if isinstance(cell, unicode):
+									tmp += '"' + cell.encode('utf-8') + '",'
+								else:
+									tmp += '"' + str(cell) + '",'
                             else:
                                 tmp += ','
                         else:
